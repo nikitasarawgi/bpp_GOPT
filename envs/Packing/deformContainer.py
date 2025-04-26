@@ -12,10 +12,12 @@ from .utils import *
 from .box import DeformBox
 
 
-class DeformContainer(object):
+class Container(object):
     def __init__(self, length=10, width=10, height=10, rotation=True):
         self.dimension = np.array([length, width, height])
         self.heightmap = np.zeros(shape=(length, width), dtype=np.int32)
+        self.stressmap = np.zeros(shape=(length, width), dtype=np.float32)
+        self.fragilitymap = np.zeros(shape=(length, width), dtype=np.float32)
         self.can_rotate = rotation
         # packed box list
         self.boxes = []
@@ -24,9 +26,19 @@ class DeformContainer(object):
         self.height = height
         self.candidates = [[0, 0, 0]]
 
+    # !! not being called anywhere
     def print_heightmap(self):
         print("container heightmap: \n", self.heightmap)
 
+    # !! not being called anywhere
+    def print_stressmap(self):
+        print("container stressmap: \n", self.stressmap)
+
+    # !! not being called anywhere
+    def print_fragilitymap(self):
+        print("container fragilitymap: \n", self.fragilitymap)
+
+    # !! not being called anywhere
     def get_heightmap(self):
         """
         get the heightmap for the ideal situation
@@ -38,6 +50,7 @@ class DeformContainer(object):
             plain = self.update_heightmap(plain, box)
         return plain
 
+    # !! not being called anywhere
     def update_heightmap_vision(self, vision):
         """
         TODO
@@ -69,20 +82,55 @@ class DeformContainer(object):
         max_h = max(max_h, box.pos_z + box.size_z)
         plain[le:ri, up:do] = max_h
         return plain
+    
+    @staticmethod
+    def update_stressmap(plain_stress, box):
+        """
+        Calculates the updated stress values based on the formula for springs in series
+        if current k value in plain_stress is 0, then new k = box_k
+        else new k = 1 / (1/box_k + 1/plain_stress) for each grid in the box's occupancy area
+        """
+        plain_stress = copy.deepcopy(plain_stress)
+        le = box.pos_x
+        ri = box.pos_x + box.size_x
+        up = box.pos_y
+        do = box.pos_y + box.size_y
+        box_k = box.spring_k
+        plain_stress[le:ri, up:do] = np.where(plain_stress[le:ri, up:do] == 0, box_k, 1 / (1/box_k + 1/plain_stress[le:ri, up:do]))
+        return plain_stress
+    
+    @staticmethod
+    def update_fragilitymap(plain_fragility, box):
+        """ 
+        Calculates the updated fragility map based on the MINIMUM fragility value of the box and the current fragility map
+        """
+        plain_fragility = copy.deepcopy(plain_fragility)
+        le = box.pos_x
+        ri = box.pos_x + box.size_x
+        up = box.pos_y
+        do = box.pos_y + box.size_y
+        box_f = box.fragility
+        plain_fragility[le:ri, up:do] = np.minimum(plain_fragility[le:ri, up:do], box_f)
+        return plain_fragility    
+        
 
+    # !! not being called anywhere
     def get_box_list(self):
         vec = list()
         for box in self.boxes:
             vec += box.standardize()
         return vec
 
+    # !! not being called anywhere
     def get_plain(self):
         return copy.deepcopy(self.heightmap)
 
     def get_action_space(self):
         return self.dimension[0] * self.dimension[1]
 
+    # !! not being called anywhere
     def get_action_mask(self, next_box, scheme="heightmap"):
+        # TODO: this is not being used anywhere - maybe just used for testing? (no EMS)
         action_mask = np.zeros(shape=(self.dimension[0], self.dimension[1]), dtype=np.int32)
 
         if scheme == "heightmap":
@@ -167,12 +215,14 @@ class DeformContainer(object):
             1. whether cross the border
             2. check stability
         Args:
-            box_size:
-            pos_xy:
+            box_size: Size of the box that needs to be placed
+            pos_xy: Position where the box is to be placed
 
         Returns:
 
         """
+        # READ: Without the benchmark flag, it just checks if the box exceeds the dimensions of the container
+        # No stability check is performed WITHOUT THE BENCHMARK FLAG
         if pos_xy[0] + box_size[0] > self.dimension[0] or pos_xy[1] + box_size[1] > self.dimension[1]:
             return -1
 
@@ -217,7 +267,7 @@ class DeformContainer(object):
             1. whether cross the border
             2. check stability
         Args:
-            box_size:
+            box_size: Size of the box that needs to be placed
             pos_xy:
 
         Returns:
@@ -247,8 +297,8 @@ class DeformContainer(object):
         """
             check stability for 3D packing
         Args:
-            dimension:
-            position:
+            dimension: Dimension of the box that needs to be placed
+            position: Position where the box is to be placed
 
         Returns:
 
@@ -346,8 +396,9 @@ class DeformContainer(object):
             size_y = box_size[0]
         size_z = box_size[2]
         plain = self.heightmap
-        new_h = self.check_box([size_x, size_y, size_z], [pos[0], pos[1]])
+        new_h = self.check_box([size_x, size_y, size_z], [pos[0], pos[1]]) # TODO: nisara: why do we not call check_box_ems here?
         if new_h != -1:
+            # TODO: change the box class and add mass, spring_k, fragility
             self.boxes.append(Box(size_x, size_y, size_z, pos[0], pos[1], pos[2]))  # record rotated box
             self.rot_flags.append(rot_flag)
             self.heightmap = self.update_heightmap(plain, self.boxes[-1])
@@ -544,6 +595,7 @@ class DeformContainer(object):
         self.candidates = candidates
         return np.array(candidates), mask
     
+    # !! focus on this function since we use EMS primarily
     def candidate_from_EMS(self, 
         next_box, 
         max_n

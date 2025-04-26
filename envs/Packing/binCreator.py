@@ -27,12 +27,37 @@ class BoxCreator(object):
         self.box_list.pop(0)
 
 
+class RandomDeformBoxCreator(BoxCreator):
+    default_box_set = [] # list of tuples to represent possible box dimensions + mass + spring constant + fragility
+    # the range of box dimensions is from 2 to 5 (inclusive)
+    # the range of mass is from 1 to 10 (inclusive)
+    # the range of spring constant is 0.01 to 10.0 (inclusive)
+    # the range of fragility index is 0 to 10 (inclusive) (let's assume fragility index == rounded-up spring constant)
+    for l in range(4):
+        for w in range(4):
+            for h in range(4):
+                for m in range(1, 11, 2):
+                    for k in range(0.01, 10.01, 0.5):
+                        default_box_set.append((2 + l, 2 + w, 2 + h, m, k, int(k)))
+
+    def __init__(self, box_size_set=None):
+        super().__init__()
+        self.box_set = box_size_set
+        if self.box_set is None:
+            self.box_set = RandomDeformBoxCreator.default_box_set
+        # print(self.box_set)
+
+    def generate_box_size(self, **kwargs):
+        idx = np.random.randint(0, len(self.box_set))
+        self.box_list.append(self.box_set[idx])
+
+
 class RandomBoxCreator(BoxCreator):
-    default_box_set = []
+    default_box_set = [] # list of tuples to represetn possible box dimensions
     for i in range(4):
         for j in range(4):
             for k in range(4):
-                default_box_set.append((2 + i, 2 + j, 2 + k))
+                default_box_set.append((2 + i, 2 + j, 2 + k)) # ranges from 2 to 5 each (inclusive)
 
     def __init__(self, box_size_set=None):
         super().__init__()
@@ -63,9 +88,9 @@ class LoadBoxCreator(BoxCreator):
         if index is None:
             self.index += 1
         else:
-            self.index = index
+            self.index = index # index of which trajectory to follow
         self.boxes = box_trajs[self.index]
-        self.box_index = 0
+        self.box_index = 0 # index of which box within that trajectory
         self.box_set = self.boxes
         self.box_set.append([10, 10, 10])
 
