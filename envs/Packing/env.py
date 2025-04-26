@@ -68,11 +68,11 @@ class PackingEnv(gym.Env):
 
     def _set_space(self) -> None:
         obs_len = self.area + 3  # the state of bin + the dimension of box (l, w, h)
-        obs_len += self.k_placement * 6
+        obs_len += self.k_placement * 6 # TODO: nisara: why did we automatically assume this as 6 and why was there not a check?
         self.action_space = spaces.Discrete(self.k_placement)
         self.observation_space = spaces.Dict(
             {
-                "obs": spaces.Box(low=0, high=max(self.bin_size), shape=(obs_len, )),
+                "obs": spaces.Box(low=0, high=max(self.bin_size), shape=(obs_len, )), # highest value the obs can take is the size of the bin
                 "mask": spaces.Discrete(self.k_placement)
             }
         )
@@ -105,7 +105,8 @@ class PackingEnv(gym.Env):
             #     print(c)
             self.candidates[0:len(placements)] = placements
 
-        size.extend([size[1], size[0], size[2]])
+        size.extend([size[1], size[0], size[2]]) # TODO: nisara: There seems to be a mismatch in the obs_len and the shape of obs here 
+        # size becomes (l, w, h, w, l, h) here but obs_len only accounts for (l, w, h)?
         obs = np.concatenate((hmap.reshape(-1), np.array(size).reshape(-1), self.candidates.reshape(-1)))
         mask = mask.reshape(-1)
         return {

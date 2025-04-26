@@ -30,6 +30,9 @@ class MetaBox():
 
 
 class CuttingBoxCreator(BoxCreator):
+    # ses a cutting-stock approach to generate boxes for bin packing 
+    # Instead of creating random boxes, it simulates cutting a large bin into smaller boxes
+    # guaranteeing that all resulting boxes could theoretically fit back perfectly
     def __init__(self, bin_size, box_range, rotation=False):
         super().__init__()
         self.box_list = []
@@ -37,8 +40,12 @@ class CuttingBoxCreator(BoxCreator):
         self.box_range = box_range
         self.rotation = rotation
 
+        # plain is used for heightmap
         self.plain = np.zeros(shape=(self.bin_size[0], self.bin_size[1]), dtype=np.int32)
+        # list of meta boxes = boxes created by cutting
+        # list of boxes that are not valid candidates yet
         self.meta_list = [MetaBox(*self.bin_size, 0, 0, 0)]
+        # list of meta boxes that are valid candidates - have support underneath them
         self.candidates = []
         self._cut_box(*self.box_range)
         self._add_candidate()
@@ -82,6 +89,7 @@ class CuttingBoxCreator(BoxCreator):
         while continue_flag:
             continue_flag = False
             for box in self.meta_list:
+                # this check will fail for the initial large box (equal to container)
                 check = self._check_box(box, low_x, low_y, low_z, high_x, high_y, high_z)
                 if check == 0:
                     new_list.append(box)
