@@ -9,10 +9,10 @@ from matplotlib.path import Path
 
 from .ems import compute_ems
 from .utils import *
-from .box import DeformBox
+from .box import Box
 
 
-class DeformContainer(object):
+class Container(object):
     def __init__(self, length=10, width=10, height=10, rotation=True):
         self.dimension = np.array([length, width, height])
         self.heightmap = np.zeros(shape=(length, width), dtype=np.int32)

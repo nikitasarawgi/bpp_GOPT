@@ -20,8 +20,9 @@ class Box(object):
 
 
 class DeformBox(object):
-    def __init__(self, length, width, height, x, y, z, mass, spring_k, fragility = 0):
+    def __init__(self, box_id, length, width, height, x, y, z, mass, spring_k, fragility = 0):
         # dimension(x, y, z) + position(lx, ly, lz)
+        self.box_id = box_id
         self.size_x = length
         self.size_y = width
         self.size_z = height
@@ -36,6 +37,6 @@ class DeformBox(object):
         """
 
         Returns:
-            tuple(size + position)
+            tuple(box_id + size + position)
         """
-        return tuple([self.size_x, self.size_y, self.size_z, self.pos_x, self.pos_y, self.pos_z])
+        return tuple([self.box_id, self.size_x, self.size_y, self.size_z, self.pos_x, self.pos_y, self.pos_z])

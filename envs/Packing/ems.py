@@ -7,14 +7,15 @@ import numpy as np
 
 
 def compute_corners(heightmap: np.ndarray):
-    # NOTE find corners by heightmap
+    # Corner detection from heightmap by udentifying locations where 
+    # the height changes in both x and y directions
 
-    hm_shape = heightmap.shape
-    extend_hm = np.ones((hm_shape[0]+2, hm_shape[1]+2)) * 10000
-    extend_hm[1:-1, 1:-1] = heightmap
+    hm_shape = heightmap.shape # shape : [x_dim, y_dim]
+    extend_hm = np.ones((hm_shape[0]+2, hm_shape[1]+2)) * 10000 # Pad the heightmap and then assign them really high values - to simulate the walls (in all 4 directions)
+    extend_hm[1:-1, 1:-1] = heightmap # Put the original heightmap in the middle of the padded heightmap
 
     x_diff_hm_1 = extend_hm[:-1] - extend_hm[1:]
-    x_diff_hm_1 = x_diff_hm_1[:-1, 1:-1]  
+    x_diff_hm_1 = x_diff_hm_1[:-1, 1:-1]  # the slicing operation to remove the paddings that we had earlier
 
     x_diff_hm_2 = extend_hm[1:] - extend_hm[:-1]
     x_diff_hm_2 = x_diff_hm_2[1:, 1:-1]  
@@ -25,17 +26,27 @@ def compute_corners(heightmap: np.ndarray):
     y_diff_hm_2 = extend_hm[:, 1:] - extend_hm[:, :-1]
     y_diff_hm_2 = y_diff_hm_2[1:-1, 1:]  
     
-    x_diff_hms = [x_diff_hm_1 != 0, x_diff_hm_2 != 0]
+    # create a list of boolean arrays of whether height changes or not
+    # x_diff_hm_1 != 0: Height drops when moving in the +x direction (right)
+    # x_diff_hm_2 != 0: Height rises when moving in the +x direction (right)
+    # y_diff_hm_1 != 0: Height drops when moving in the +y direction (down)
+    # y_diff_hm_2 != 0: Height rises when moving in the +y direction (down)
+    x_diff_hms = [x_diff_hm_1 != 0, x_diff_hm_2 != 0] 
     y_diff_hms = [y_diff_hm_1 != 0, y_diff_hm_2 != 0]
 
+    # A corner exists where height changes simultaneously in both x and y directions
     corner_hm = np.zeros_like(heightmap)
     for xhm in x_diff_hms:
         for yhm in y_diff_hms:
-            corner_hm += xhm * yhm  
+            corner_hm += xhm * yhm # Multiplication of True and False 
 
+    # EMS spaces are represented by the left-bottom corner of the container
+    # and the right-top corner of the container
+    # the top-right corner can be easily calculated using the left-bottom corner if we know the size of the ems space
     left_bottom_hm = (x_diff_hm_1 != 0) * (y_diff_hm_1 != 0)
 
     left_bottom_corners = np.where(left_bottom_hm > 0)
+    # transpose just to change the shape of the array to (2, n) where n is the number of corners
     left_bottom_corners = np.array(left_bottom_corners).transpose()
 
     corners = np.where(corner_hm > 0)
@@ -43,9 +54,11 @@ def compute_corners(heightmap: np.ndarray):
 
     # x_borders = list(np.where(x_diff_hm_1.sum(axis=1))[0])
     # y_borders = list(np.where(y_diff_hm_1.sum(axis=0))[0])
+    # TODO: BUG: should this not be [1] for y_borders?
     x_borders = list(np.unique(np.where(x_diff_hm_1 != 0)[0]))
     y_borders = list(np.unique(np.where(y_diff_hm_1 != 0)[0]))
     
+    # The bin container sides are also borders
     x_borders.append(hm_shape[0])
     y_borders.append(hm_shape[1])
 
@@ -59,13 +72,16 @@ def compute_stair_corners(heightmap, corners):
     stair_hm = np.zeros_like(heightmap)
     corner_heights = heightmap[corners[:,0], corners[:,1]]
     sort_ids = np.argsort(corner_heights)
+    # sort the corners based on their heights
     sort_corners = corners[sort_ids]
 
     for c in sort_corners:
         cx, cy = c
         h = heightmap[cx, cy]
+        # fills the entire rectangle from (0,0) to (cx,cy) with this height
         stair_hm[:cx+1, :cy+1] = h
     
+    # only use the left-bottom corners this time
     _, slb_corner, _, _ = compute_corners(stair_hm)
     return slb_corner
 
@@ -76,7 +92,7 @@ def compute_empty_space(
         x_borders, 
         y_borders, 
         heightmap, 
-        empty_space_list, 
+        empty_space_list, # store the empty spaces here
         x_side='left-right', 
         y_side='left-right', 
         min_ems_width=0, 
@@ -91,12 +107,14 @@ def compute_empty_space(
     def check_valid_height_layer(height_layer):
         return (height_layer <= 0).all()
 
+    # check for each corner as a potential starting point for any empty space
     for corner in corners:
         x,y = corner
         # h = int(heightmap[x, y])
         h = heightmap[x, y]
         if h == container_h: continue
 
+        # the WHOLE heightmap is shifted down
         h_layer = heightmap - h
 
         for axes in itertools.permutations(range(2), 2):
