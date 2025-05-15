@@ -11,7 +11,7 @@ from .binCreator import RandomDeformBoxCreator, LoadBoxCreator, BoxCreator
 from render import VTKRender
 
 
-class PackingEnv(gym.Env):
+class DeformPackingEnv(gym.Env):
     def __init__(
         self,
         container_size=(10, 10, 10),
@@ -42,7 +42,7 @@ class PackingEnv(gym.Env):
 
         # Generator for train/test data
         if not load_test_data:
-            assert item_set is not None
+            # assert item_set is not None
             if data_type == "random":
                 print(f"using items generated randomly")
                 self.box_creator = RandomDeformBoxCreator(item_set)  
@@ -67,10 +67,9 @@ class PackingEnv(gym.Env):
         self._set_space()
 
     def _set_space(self) -> None:
-        # TODO: nisara: Add dimesnions for stressmap and fragility map if they need to be added to the policy
-        # TODO: The dimesnions of the self.next_box have also changed now, add that?
-        obs_len = self.area + 3  # the state of bin -> heightmap + the dimension of box (l, w, h)
-        obs_len += self.k_placement * 6 # 3 for each orientation type
+        # nisara: Add dimensions for stressmap and fragility map if they need to be added to the policy - DO NOT NEED TO BE ADDED
+        obs_len = self.area + 12  # the state of bin -> heightmap + the dimension of box (l, w, h)
+        obs_len += self.k_placement * 6 # number of allowed EMS placements * 6 (dimension of each EMS placement representation) - this is not the mask, but the actual EMS coordinates
         self.action_space = spaces.Discrete(self.k_placement)
         self.observation_space = spaces.Dict(
             {
@@ -107,8 +106,8 @@ class PackingEnv(gym.Env):
             #     print(c)
             self.candidates[0:len(placements)] = placements
 
-        size.extend([size[1], size[0], size[2]]) # TODO: nisara: There seems to be a mismatch in the obs_len and the shape of obs here 
-        # size becomes (l, w, h, w, l, h) here but obs_len only accounts for (l, w, h)?
+        size.extend([size[1], size[0], size[2], size[3], size[4], size[5]])
+        # size becomes (l, w, h, m, k, f, w, l, h, m, k , f) here 
         obs = np.concatenate((hmap.reshape(-1), np.array(size).reshape(-1), self.candidates.reshape(-1)))
         mask = mask.reshape(-1)
         return {
@@ -182,7 +181,7 @@ class PackingEnv(gym.Env):
             else:  # Step-wise/Immediate reward
                 reward = 0.0
             done = True
-            
+            print("Episode finished here and the reward is: ", reward)
             # TODO: nisara: Do the dimensions get changed here too? check code for rendering
             self.render_box = [[0, 0, 0], [0, 0, 0]]
             info = {'counter': len(self.container.boxes), 'ratio': self.container.get_volume_ratio()}

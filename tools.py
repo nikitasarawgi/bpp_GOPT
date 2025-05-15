@@ -32,11 +32,17 @@ def backup(time_str, args, upper_policy=None):
         torch.save(upper_policy.state_dict(),
                    os.path.join(args.model_save_path, time_str, 'upper-first-' + time_str + ".pt"))
 
+# nisara: CHANGED
+# def registration_envs():
+#     register(
+#         id='OnlinePack-v1',
+#         entry_point='envs.Packing:PackingEnv',
+#     )
 
 def registration_envs():
     register(
-        id='OnlinePack-v1',
-        entry_point='envs.Packing:PackingEnv',
+        id='OnlineDeformPack-v1',
+        entry_point='envs.Packing:DeformPackingEnv',
     )
     
 

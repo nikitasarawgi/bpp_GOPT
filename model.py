@@ -244,8 +244,10 @@ class ShareNet(nn.Module):
 
         self.factor = 1 / max(container_size)
         
+        # nisara: Changed the input sizes to account for mass, fragility, spring constant
         self.item_encoder = nn.Sequential(
-            init_(nn.Linear(3, 32)),
+            # init_(nn.Linear(3, 32)),
+            init_(nn.Linear(6, 32)),
             nn.LeakyReLU(),
             init_(nn.Linear(32, embed_size)),
         )
@@ -279,7 +281,7 @@ class ShareNet(nn.Module):
         if not isinstance(mask, torch.Tensor) and mask is not None:
             mask = torch.as_tensor(mask, dtype=torch.float32, device=self.device)  # (batch_size, k_placement)
         
-        obs_hm, obs_next, obs_placements = obs2input(obs, self.container_size, self.place_gen)
+        obs_hm, obs_next, obs_placements = obs2input_updated(obs, self.container_size, self.place_gen)
 
         item_embedding = self.item_encoder(obs_next)  # (batch_size, 2, emded_size)
         placement_embedding = self.placement_encoder(obs_placements)  # (batch_size, k_placement, emded_size)
@@ -288,6 +290,35 @@ class ShareNet(nn.Module):
             item_embedding, placement_embedding = layer(item_embedding, placement_embedding, mask)
 
         return item_embedding, placement_embedding, state
+
+# nisara: Changed the input sizes to account for mass, fragility, spring constant
+def obs2input_updated(
+    obs: torch.Tensor, 
+    container_size: Sequence[int],
+    place_gen: str = "EMS",
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """ 
+        convert obsversation to input of the network
+
+    Returns:
+        hm:         (batch, 1, L, W)
+        next_size:  (batch, 2, 6) []l/w, l/w, h, m, k, f]
+        placements: (batch, k_placement, 6)
+    """
+    batch_size = obs.shape[0]
+    hm = obs[:, :container_size[0]*container_size[1]].reshape((batch_size, 1, container_size[0], container_size[1]))
+    next_size = obs[:, container_size[0]*container_size[1]:container_size[0]*container_size[1] + 12]
+    # [[l, w, h, m, k, f], [w, l, h, m, k, f]]
+    next_size = next_size.reshape((batch_size, 2, 6))
+    
+    if place_gen == "EMS":
+        # (x_1, y_1, z_1, x_2, y_2, H)
+        placements = obs[:, container_size[0]*container_size[1] + 12:].reshape((batch_size, -1, 6))
+    else:
+        placements = obs[:, container_size[0]*container_size[1] + 12:].reshape((batch_size, -1, 3))
+
+    return hm, next_size, placements
+
 
 
 def obs2input(
@@ -315,6 +346,7 @@ def obs2input(
     else:
         placements = obs[:, container_size[0]*container_size[1] + 6:].reshape((batch_size, -1, 3))
 
+    # Even though we return the heightmap (hm), it is not used anywhere in the model
     return hm, next_size, placements
 
 
