@@ -1,6 +1,7 @@
 import numpy as np
 import copy
 import torch
+import math
 
 
 class BoxCreator(object):
@@ -30,15 +31,15 @@ class BoxCreator(object):
 class RandomDeformBoxCreator(BoxCreator):
     default_box_set = [] # list of tuples to represent possible box dimensions + mass + spring constant + fragility
     # the range of box dimensions is from 2 to 5 (inclusive)
-    # the range of mass is from 1 to 10 (inclusive)
+    # the range of mass is from 1 to 10 (inclusive) kg
     # the range of spring constant is 0.01 to 10.0 (inclusive)
     # the range of fragility index is 0 to 10 (inclusive) (let's assume fragility index == rounded-up spring constant)
     for l in range(4):
         for w in range(4):
             for h in range(4):
                 for m in range(1, 11, 2):
-                    for k in range(0.01, 10.01, 0.5):
-                        default_box_set.append((2 + l, 2 + w, 2 + h, m, k, int(k)))
+                    for k in np.arange(0.01, 10.01, 0.5):
+                        default_box_set.append((2 + l, 2 + w, 2 + h, m, k, np.round(k)))
 
     def __init__(self, box_size_set=None):
         super().__init__()

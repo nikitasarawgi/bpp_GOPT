@@ -38,15 +38,17 @@ def get_args():
     else:
         step = box_small
 
-    box_size_set = []
-    for i in range(box_range[0], box_range[3] + 1, step):
-        for j in range(box_range[1], box_range[4] + 1, step):
-            for k in range(box_range[2], box_range[5] + 1, step):
-                box_size_set.append((i, j, k))
+    # nisara: CHANGED: let just box_size_set be None, it can get initialized in the env
+    # box_size_set = []
+    # for i in range(box_range[0], box_range[3] + 1, step):
+    #     for j in range(box_range[1], box_range[4] + 1, step):
+    #         for k in range(box_range[2], box_range[5] + 1, step):
+    #             box_size_set.append((i, j, k))
     
     cfg.env.box_small = box_small
     cfg.env.box_big = box_big
-    cfg.env.box_size_set = box_size_set
+    # cfg.env.box_size_set = box_size_set
+    cfg.env.box_size_set = None
     cfg.cuda = not args.no_cuda 
 
     cfg = OmegaConf.merge(cfg, vars(args))
