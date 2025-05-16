@@ -20,7 +20,7 @@ class DeformPackingEnv(gym.Env):
         load_test_data=False,
         enable_rotation=False,
         data_type="random",
-        reward_type=None,
+        reward_type="terminal",
         action_scheme="heightmap",
         k_placement=100,
         is_render=False,
@@ -193,7 +193,9 @@ class DeformPackingEnv(gym.Env):
         self.box_creator.generate_box_size()  # add a new box to the list
 
         if self.reward_type == "terminal":
-            reward = 0.01
+            # nisara: CHANGED: reward is the volume ratio of the box to the bin
+            # reward = 0.01
+            reward = self.container.get_volume_ratio()
         else:
             reward = box_ratio
         done = False

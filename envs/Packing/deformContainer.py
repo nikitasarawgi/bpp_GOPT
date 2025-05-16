@@ -44,6 +44,8 @@ class DeformContainer(object):
         self.k_map_3d = np.zeros(shape=(length, width, height), dtype=np.float32)
         self.box_id_map_3d = np.zeros(shape=(length, width, height), dtype=np.int32) * -1
 
+        self.deformed_values = []
+
     # !! not being called anywhere
     def print_heightmap(self):
         print("container heightmap: \n", self.heightmap)
@@ -169,8 +171,7 @@ class DeformContainer(object):
 
                             k = k - deform_val
                             z = z - deform_val 
-
-
+                                                       
                         curr_h = 0
                         box_id = box_id_map[i][j][k]
                 # k should ideally be equal to z here
@@ -217,7 +218,7 @@ class DeformContainer(object):
         return plain_stress
     
     @staticmethod
-    def update_fragilitymap(plain_fragility, box):
+    def update_fragilitymap(plain_fragility, plain_height, box):
         """ 
         Calculates the updated fragility map based on the MINIMUM fragility value of the box and the current fragility map
         """
@@ -230,12 +231,27 @@ class DeformContainer(object):
         up = box.pos_y
         do = box.pos_y + box.size_y
         box_f = box.fragility
-        # nisara: COMMENT PRINT
-        # print("Box fragility:", box_f)
-        # print("Box mass:", box.mass)
-        # since the box was allowed to be placed, we assume that the mass will definitely be less than the fragility index
-        plain_fragility[le:ri, up:do] -= np.float32(box.mass)
+        
+        # Calculate the valid points (which contain a box) under this box
+        points = []
+        for x in range(le, ri):
+            for y in range(up, do):
+                if plain_height[x][y] == (box.pos_z):
+                    points.append([x, y])
+
+        # print("Points under this box:", len(points))
+        
+        if len(points) > 0:
+            box_mass_per_grid = np.round(box.mass / len(points))
+        else:
+            box_mass_per_grid = np.round(box.mass / (box.size_x * box.size_y))
+        for point in points:
+            plain_fragility[point[0]][point[1]] -= box_mass_per_grid
+
         plain_fragility[le:ri, up:do] = np.minimum(plain_fragility[le:ri, up:do], box_f)
+        # print("Box_fragility:", box_f)
+        # print("plain_fragility[le:ri, up:do]:", plain_fragility[le:ri, up:do])
+
         return plain_fragility    
         
 
@@ -504,34 +520,51 @@ class DeformContainer(object):
                 return False
         
     def check_box_fragility(self, box_size, points, obj_center, box_properties):
-        box_mass, _, _ = box_properties
-        box_mass = box_mass  # convert mass to kg here
+        box_mass, _, _ = box_properties 
         
         points_np = np.array(points)
         center_np = np.array(obj_center)
         distances = np.sqrt(np.sum((points_np - center_np) ** 2, axis=1))
 
-        # calculate load distance using lever principle
-        # TODO: check this
-        total_load_distance = np.sum(distances)
-        if total_load_distance > 0:
-            mass_distribution = distances / total_load_distance * box_mass
-            mass_distribution = mass_distribution * (box_mass / np.sum(mass_distribution))
+        box_mass = box_mass / len(points_np)
 
-            # Check if any support point exceedds the allowed mass limit
-            for i, point in enumerate(points):
-                x, y = point
-                if mass_distribution[i] > self.fragility_mass_map[self.fragilitymap[x][y]]:
-                    return False
+        # # calculate load distance using lever principle
+        # # TODO: check this
+        # total_load_distance = np.sum(distances)
+        # if total_load_distance > 0:
+        #     mass_distribution = (distances / total_load_distance) * box_mass
+        #     # mass_distribution = mass_distribution * (box_mass / np.sum(mass_distribution))
+
+        #     # Check if any support point exceedds the allowed mass limit
+        #     for i, point in enumerate(points):
+        #         # print("Comes here!!")
+        #         x, y = point
+        #         if mass_distribution[i] > self.fragility_mass_map[self.fragilitymap[x, y]]:
+        #             return False
+        # return True
+
+        # Each point in the support area will have the same mass distribution irrespective of the distance from the center
+        # Check if any support point exceeds the allowed mass limit
+        # print("Number of points: ", len(points_np))
+        for point in points_np:
+            x, y = point
+            # print("value: ", self.fragilitymap[x, y])
+            # print("Box mass: ", box_mass)
+            if box_mass > self.fragility_mass_map[self.fragilitymap[x, y]]:
+                return False
         return True
     
 
     def get_volume_ratio(self):
         # Ration of the volume of packed boxes to the volume of the container
-        vo = reduce(lambda x, y: x + y, [box.size_x * box.size_y * box.size_z for box in self.boxes], 0.0)
+        # vo = reduce(lambda x, y: x + y, [box.size_x * box.size_y * box.size_z for box in self.boxes], 0.0)
+        # Calculate volume by seeing the heightmap - the height of each grid is given by the heightmap
+        vo = np.sum(self.heightmap)
         mx = self.dimension[0] * self.dimension[1] * self.dimension[2]
         ratio = vo / mx
         assert ratio <= 1.0
+        if ratio < 0:
+            print("VOLUME RATIO IS NEGATIVE: ", ratio)
         return ratio
 
     # 1d index -> 2d plain coordinate
@@ -579,11 +612,13 @@ class DeformContainer(object):
             box_id_index = len(self.boxes) + 1
             self.boxes.append(DeformBox(box_id_index, size_x, size_y, size_z, pos[0], pos[1], pos[2], mass=mass, spring_k=spring_k, fragility=fragility))  # record rotated box
             self.rot_flags.append(rot_flag)
+            self.deformed_values.append(size_z)
             # POST-PACKAGE DEFORMATION is added before updating the heightmap
+            self.fragilitymap = self.update_fragilitymap(self.fragilitymap, self.heightmap, self.boxes[-1])
             self.heightmap, self.boxes[-1] = self.update_heightmap(plain, self.boxes[-1])
             self.height = max(self.height, self.boxes[-1].pos_z + size_z)
             self.stressmap = self.update_stressmap(self.stressmap, self.boxes[-1])
-            self.fragilitymap = self.update_fragilitymap(self.fragilitymap, self.boxes[-1])
+            
             return True
         return False
 

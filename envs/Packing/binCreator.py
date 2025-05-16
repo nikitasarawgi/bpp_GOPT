@@ -34,6 +34,7 @@ class RandomDeformBoxCreator(BoxCreator):
     # the range of mass is from 1 to 10 (inclusive) kg
     # the range of spring constant is 0.01 to 10.0 (inclusive)
     # the range of fragility index is 0 to 10 (inclusive) (let's assume fragility index == rounded-up spring constant)
+    # NOTE: fragility index is the max weight THAT each grid of that box can hold
     for l in range(4):
         for w in range(4):
             for h in range(4):
