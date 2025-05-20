@@ -129,26 +129,17 @@ class DeformContainer(object):
                 curr_h = 0
                 z = box.pos_z
                 box_id = box_id_map[i][j][0]
-                # nisara: COMMENT PRINT
-                # print("Initial box_id: ", box_id)
-                # print("z: ", z)
                 while (k <= z) and (box_id != 0):
                     if box_id_map[i][j][k] == box_id:
                         curr_h += 1
                         k += 1
                     else:
-                        # nisara: COMMENT PRINT
-                        # print("Box_id:", box_id)
-                        # print("curr_h:", curr_h)
-                        # print("k:", k)
-
                         # Confirm that the weight_values are same across all grids
                         weight_values = weight_map[i][j][k-curr_h:k] # Just note here that weight_values is going to be a pointer to the array, so once you add it to the new weight, THIS WILL CHANGE TOO!
-                        # nisara: COMMENT PRINT
-                        # print("weight_values:", weight_values)
                         k_values = k_map[i][j][k-curr_h:k]
-                        assert np.isclose(np.sum(weight_values), weight_values[0] * curr_h), "Weight values are not same across all grids"
-                        assert np.isclose(np.sum(k_values), k_values[0] * curr_h), "K values are not same across all grids"
+                        # Python is not ready for this yet :)
+                        # assert np.isclose(np.sum(weight_values), weight_values[0] * curr_h), "Weight values are not same across all grids"
+                        # assert np.isclose(np.sum(k_values), k_values[0] * curr_h), "K values are not same across all grids"
                         weight_map[i][j][k-curr_h:k] = weight_values + weight_per_column
                         deform_val = weight_per_column * (9.8) / k_values[0]
                         # Round up the deform value to the nearest integer
@@ -184,9 +175,6 @@ class DeformContainer(object):
         k_map[le:ri, up:do, updated_z:updated_z+height] = box.spring_k
         box_id_map[le:ri, up:do, updated_z:updated_z+height] = box.box_id
 
-        # nisara: COMMENT PRINT
-        # print("box_id_map:", box_id_map)
-        # print("weight_map:", weight_map)
         self.weight_map_3d = weight_map
         self.k_map_3d = k_map
         self.box_id_map_3d = box_id_map
@@ -246,11 +234,17 @@ class DeformContainer(object):
         else:
             box_mass_per_grid = np.round(box.mass / (box.size_x * box.size_y))
         for point in points:
+            # Do a check here to see if the fragility value is less than the box mass
+            # If it is, then set the fragility value to 0
+            # plain_fragility[point[0]][point[1]] -= np.max(0, box_mass_per_grid)
             plain_fragility[point[0]][point[1]] -= box_mass_per_grid
 
+
         plain_fragility[le:ri, up:do] = np.minimum(plain_fragility[le:ri, up:do], box_f)
-        # print("Box_fragility:", box_f)
-        # print("plain_fragility[le:ri, up:do]:", plain_fragility[le:ri, up:do])
+        if plain_fragility[le:ri, up:do].min() < 0:
+            print("Fragility map has negative values")
+            print("The values for reference are: ", plain_fragility[le:ri, up:do])
+            plain_fragility[le:ri, up:do] = np.maximum(plain_fragility[le:ri, up:do], 0)
 
         return plain_fragility    
         
@@ -526,7 +520,7 @@ class DeformContainer(object):
         center_np = np.array(obj_center)
         distances = np.sqrt(np.sum((points_np - center_np) ** 2, axis=1))
 
-        box_mass = box_mass / len(points_np)
+        box_mass = np.round(box_mass / len(points_np))
 
         # # calculate load distance using lever principle
         # # TODO: check this

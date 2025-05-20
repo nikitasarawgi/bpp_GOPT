@@ -181,7 +181,7 @@ class DeformPackingEnv(gym.Env):
             else:  # Step-wise/Immediate reward
                 reward = 0.0
             done = True
-            print("Episode finished here and the reward is: ", reward)
+            # print("Episode finished here and the reward is: ", reward)
             # TODO: nisara: Do the dimensions get changed here too? check code for rendering
             self.render_box = [[0, 0, 0], [0, 0, 0]]
             info = {'counter': len(self.container.boxes), 'ratio': self.container.get_volume_ratio()}
