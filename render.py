@@ -2,6 +2,7 @@ from typing import Any, Dict, List, Optional, Type, Union
 import os
 import time
 import datetime
+import numpy as np
 
 import vtk
 # import vtkmodules.all as vtk
@@ -213,12 +214,138 @@ class VTKRender:
         writer.SetInputConnection(window_to_image_filter.GetOutputPort())
         writer.Write()
 
+    def render_deform_bin(self, box_id_map_3d: np.ndarray) -> None:
+        actors = self.render.GetActors()
+        actors.InitTraversal()
+        for i in range(actors.GetNumberOfItems()):
+            actor = actors.GetNextActor()
+            if i > 1: 
+                self.render.RemoveActor(actor)
+
+        unique_ids = np.unique(box_id_map_3d)
+        unique_ids = unique_ids[unique_ids > 0] 
+        
+        colors = vtk.vtkNamedColors()
+
+        for box_id in unique_ids:
+            color_category = color_key[box_id % len(color_key)]  
+            color_shade = (box_id // len(color_key)) % len(vtk_color[color_category])
+            color_name = vtk_color[color_category][color_shade]
+            
+            x_coords, y_coords, z_coords = np.where(box_id_map_3d == box_id)
+            
+            append = vtk.vtkAppendPolyData()
+            
+            for i in range(len(x_coords)):
+                x, y, z = x_coords[i], y_coords[i], z_coords[i]
+                
+                cube = vtk.vtkCubeSource()
+                cube.SetXLength(1.0)
+                cube.SetYLength(1.0)
+                cube.SetZLength(1.0)
+                cube.SetCenter([
+                    -0.5 * self.container_size[0] + 0.5 + x,
+                    -0.5 * self.container_size[1] + 0.5 + y,
+                    -0.5 * self.container_size[2] + 0.5 + z
+                ])
+                cube.Update()
+                
+                append.AddInputData(cube.GetOutput())
+            
+            append.Update()
+            
+            mapper = vtk.vtkPolyDataMapper()
+            mapper.SetInputData(append.GetOutput())
+            
+            actor = vtk.vtkActor()
+            actor.SetMapper(mapper)
+            actor.GetProperty().SetColor(colors.GetColor3d(color_name))
+            
+            self.render.AddActor(actor)
+        
+        lines = vtk.vtkPolyData()
+        points = vtk.vtkPoints()
+        cells = vtk.vtkCellArray()
+        
+        shape = box_id_map_3d.shape
+        for x in range(shape[0]):
+            for y in range(shape[1]):
+                for z in range(shape[2]):
+                    current_id = box_id_map_3d[x,y,z]
+                    if current_id <= 0:
+                        continue
+                    
+                    if x+1 < shape[0] and box_id_map_3d[x+1,y,z] > 0 and box_id_map_3d[x+1,y,z] != current_id:
+                        p1 = points.InsertNextPoint(-0.5*self.container_size[0]+x+1, -0.5*self.container_size[1]+y, -0.5*self.container_size[2]+z)
+                        p2 = points.InsertNextPoint(-0.5*self.container_size[0]+x+1, -0.5*self.container_size[1]+y+1, -0.5*self.container_size[2]+z)
+                        p3 = points.InsertNextPoint(-0.5*self.container_size[0]+x+1, -0.5*self.container_size[1]+y+1, -0.5*self.container_size[2]+z+1)
+                        p4 = points.InsertNextPoint(-0.5*self.container_size[0]+x+1, -0.5*self.container_size[1]+y, -0.5*self.container_size[2]+z+1)
+                        
+                        line = vtk.vtkPolyLine()
+                        line.GetPointIds().SetNumberOfIds(5)
+                        line.GetPointIds().SetId(0, p1)
+                        line.GetPointIds().SetId(1, p2)
+                        line.GetPointIds().SetId(2, p3)
+                        line.GetPointIds().SetId(3, p4)
+                        line.GetPointIds().SetId(4, p1)
+                        cells.InsertNextCell(line)
+                    
+                    if y+1 < shape[1] and box_id_map_3d[x,y+1,z] > 0 and box_id_map_3d[x,y+1,z] != current_id:
+                        p1 = points.InsertNextPoint(-0.5*self.container_size[0]+x, -0.5*self.container_size[1]+y+1, -0.5*self.container_size[2]+z)
+                        p2 = points.InsertNextPoint(-0.5*self.container_size[0]+x+1, -0.5*self.container_size[1]+y+1, -0.5*self.container_size[2]+z)
+                        p3 = points.InsertNextPoint(-0.5*self.container_size[0]+x+1, -0.5*self.container_size[1]+y+1, -0.5*self.container_size[2]+z+1)
+                        p4 = points.InsertNextPoint(-0.5*self.container_size[0]+x, -0.5*self.container_size[1]+y+1, -0.5*self.container_size[2]+z+1)
+                        
+                        line = vtk.vtkPolyLine()
+                        line.GetPointIds().SetNumberOfIds(5)
+                        line.GetPointIds().SetId(0, p1)
+                        line.GetPointIds().SetId(1, p2)
+                        line.GetPointIds().SetId(2, p3)
+                        line.GetPointIds().SetId(3, p4)
+                        line.GetPointIds().SetId(4, p1)
+                        cells.InsertNextCell(line)
+                    
+                    if z+1 < shape[2] and box_id_map_3d[x,y,z+1] > 0 and box_id_map_3d[x,y,z+1] != current_id:
+                        p1 = points.InsertNextPoint(-0.5*self.container_size[0]+x, -0.5*self.container_size[1]+y, -0.5*self.container_size[2]+z+1)
+                        p2 = points.InsertNextPoint(-0.5*self.container_size[0]+x+1, -0.5*self.container_size[1]+y, -0.5*self.container_size[2]+z+1)
+                        p3 = points.InsertNextPoint(-0.5*self.container_size[0]+x+1, -0.5*self.container_size[1]+y+1, -0.5*self.container_size[2]+z+1)
+                        p4 = points.InsertNextPoint(-0.5*self.container_size[0]+x, -0.5*self.container_size[1]+y+1, -0.5*self.container_size[2]+z+1)
+                        
+                        line = vtk.vtkPolyLine()
+                        line.GetPointIds().SetNumberOfIds(5)
+                        line.GetPointIds().SetId(0, p1)
+                        line.GetPointIds().SetId(1, p2)
+                        line.GetPointIds().SetId(2, p3)
+                        line.GetPointIds().SetId(3, p4)
+                        line.GetPointIds().SetId(4, p1)
+                        cells.InsertNextCell(line)
+        
+        lines.SetPoints(points)
+        lines.SetLines(cells)
+        
+        mapper = vtk.vtkPolyDataMapper()
+        mapper.SetInputData(lines)
+        
+        actor = vtk.vtkActor()
+        actor.SetMapper(mapper)
+        actor.GetProperty().SetColor(0, 0, 0)
+        actor.GetProperty().SetLineWidth(2)
+        
+        self.render.AddActor(actor)
+        self.render_window.Render()
 
 if __name__ == "__main__":
     render = VTKRender([10, 10, 10])
 
-    render.add_item([2, 3, 2], [0, 0, 0])
-    render.hold_on()
-    render.add_item([1, 1, 1], [2, 0, 0])
+    # render.add_item([2, 3, 2], [0, 0, 0])
+    # # render.hold_on()
+    # render.add_item([1, 1, 1], [2, 0, 0])
+    # render.add_item([4, 3, 6], [4, 0, 0])
+
+    # Create a random 3D box ID map
+    box_id_map_3d = np.random.randint(0, 5, (10, 10, 10))
+
+    render.render_deform_bin(box_id_map_3d)
+    
 
     render.hold_on()

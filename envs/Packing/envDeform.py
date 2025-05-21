@@ -216,5 +216,6 @@ class DeformPackingEnv(gym.Env):
         np.random.seed(s)
 
     def render(self):
-        self.renderer.add_item(self.render_box[0], self.render_box[1])
+        self.renderer.render_deform_bin(self.container.box_id_map_3d)
+        # self.renderer.add_item(self.render_box[0], self.render_box[1])
         # self.renderer.save_img()
