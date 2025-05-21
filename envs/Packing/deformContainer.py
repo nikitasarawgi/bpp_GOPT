@@ -100,6 +100,7 @@ class DeformContainer(object):
         do = box.pos_y + box.size_y
         box = self.post_package_deform(box)
         max_h = np.max(plain[le:ri, up:do])
+        # nisara:: COMMENTED OUT THIS - please recheck again
         # max_h = max(max_h, box.pos_z + box.size_z)
         max_h = box.pos_z + box.size_z
         plain[le:ri, up:do] = max_h
@@ -183,8 +184,7 @@ class DeformContainer(object):
         return box
 
                     
-    @staticmethod
-    def update_stressmap(plain_stress, box):
+    def update_stressmap(self, plain_stress, box):
         """
         Calculates the updated stress values based on the formula for springs in series
         if current k value in plain_stress is 0, then new k = box_k
@@ -205,8 +205,7 @@ class DeformContainer(object):
         plain_stress[le:ri, up:do] = result
         return plain_stress
     
-    @staticmethod
-    def update_fragilitymap(plain_fragility, plain_height, box):
+    def update_fragilitymap(self, plain_fragility, plain_height, box):
         """ 
         Calculates the updated fragility map based on the MINIMUM fragility value of the box and the current fragility map
         """
@@ -219,12 +218,13 @@ class DeformContainer(object):
         up = box.pos_y
         do = box.pos_y + box.size_y
         box_f = box.fragility
+        place_z = np.max(plain_height[le:ri, up:do])
         
         # Calculate the valid points (which contain a box) under this box
         points = []
         for x in range(le, ri):
             for y in range(up, do):
-                if plain_height[x][y] == (box.pos_z):
+                if plain_height[x][y] == (place_z):
                     points.append([x, y])
 
         # print("Points under this box:", len(points))
@@ -235,16 +235,11 @@ class DeformContainer(object):
             box_mass_per_grid = np.round(box.mass / (box.size_x * box.size_y))
         for point in points:
             # Do a check here to see if the fragility value is less than the box mass
-            # If it is, then set the fragility value to 0
-            # plain_fragility[point[0]][point[1]] -= np.max(0, box_mass_per_grid)
             plain_fragility[point[0]][point[1]] -= box_mass_per_grid
+    
 
 
         plain_fragility[le:ri, up:do] = np.minimum(plain_fragility[le:ri, up:do], box_f)
-        if plain_fragility[le:ri, up:do].min() < 0:
-            print("Fragility map has negative values")
-            print("The values for reference are: ", plain_fragility[le:ri, up:do])
-            plain_fragility[le:ri, up:do] = np.maximum(plain_fragility[le:ri, up:do], 0)
 
         return plain_fragility    
         
@@ -348,8 +343,9 @@ class DeformContainer(object):
 
     # Even though there exists a check_box_ems function, 
     # this function is called in place_box
-    # READ: Without the benchmark flag, it just checks if the box exceeds the dimensions of the container
-    # No stability check is performed WITHOUT THE BENCHMARK FLAG
+    # since without the benchmark flag, both functions are essentially the same
+    # nisara: this is where the real check for mass over fragility should be done
+    # in is_stable function
     def check_box(self, box_size, pos_xy, box_properties, benchmark=False):
         """
             check
@@ -362,8 +358,6 @@ class DeformContainer(object):
         Returns:
 
         """
-        # READ: Without the benchmark flag, it just checks if the box exceeds the dimensions of the container
-        # No stability check is performed WITHOUT THE BENCHMARK FLAG
         if pos_xy[0] + box_size[0] > self.dimension[0] or pos_xy[1] + box_size[1] > self.dimension[1]:
             return -1
 
@@ -402,8 +396,6 @@ class DeformContainer(object):
 
         return -1
 
-    # nisara: this is where the real check for mass over fragility should be done
-    # in is_stable function
     def check_box_ems(self, box_size, ems, box_properties, benchmark=False):
         """
             check
@@ -480,15 +472,22 @@ class DeformContainer(object):
             for y in range(y_1, y_2 + 1):
                 if self.heightmap[x][y] == (z + 1):
                     points.append([x, y]) # appends each point 
+        # nisara:: COMMENT PRINT
+        # self.heightmap_to_compare = self.heightmap
+        # self.dimesnion_to_compare = [x_1, x_2, y_1, y_2, z]
+
+        # self.points_to_compare = points
 
         # the support area is more than half of the bottom surface of the item
         if len(points) > dimension[0] * dimension[1] * 0.5:
+            # self.check = "1"
             return self.check_box_fragility(dimension, points, obj_center, box_properties)
         
         if len(points) == 0 or len(points) == 1: 
             return False # no support
         elif len(points) == 2: # whether the center lies on the line of the two points
             if on_segment(points[0], points[1], obj_center):
+                # self.check = "2"
                 return self.check_box_fragility(dimension, points, obj_center, box_properties)
             else:
                 return False # no support
@@ -502,6 +501,7 @@ class DeformContainer(object):
                 start_p = min(points, key=lambda p: [p[0], p[1]])
                 end_p = max(points, key=lambda p: [p[0], p[1]])
                 if on_segment(start_p, end_p, obj_center):
+                    # self.check = "3"
                     return self.check_box_fragility(dimension, points, obj_center, box_properties)
                 else:
                     return False
@@ -509,6 +509,7 @@ class DeformContainer(object):
             hull_path = Path(points[convex_hull.vertices])
 
             if hull_path.contains_point(obj_center):
+                # self.check = "4"
                 return self.check_box_fragility(dimension, points, obj_center, box_properties)
             else:
                 return False
@@ -539,12 +540,16 @@ class DeformContainer(object):
 
         # Each point in the support area will have the same mass distribution irrespective of the distance from the center
         # Check if any support point exceeds the allowed mass limit
-        # print("Number of points: ", len(points_np))
+        # nisara:: COMMENT PRINT
+        # self.points_np_to_compare = points_np
+        # self.box_mass_to_compare = box_mass
+        # self.fragilitymap_to_compare = self.fragilitymap
         for point in points_np:
             x, y = point
             # print("value: ", self.fragilitymap[x, y])
             # print("Box mass: ", box_mass)
-            if box_mass > self.fragility_mass_map[self.fragilitymap[x, y]]:
+            
+            if self.fragilitymap[x, y] < box_mass:
                 return False
         return True
     
@@ -604,7 +609,7 @@ class DeformContainer(object):
             # nisara: changed to deform box here and added the required properties
             mass, spring_k, fragility = properties[0], properties[1], properties[2]
             box_id_index = len(self.boxes) + 1
-            self.boxes.append(DeformBox(box_id_index, size_x, size_y, size_z, pos[0], pos[1], pos[2], mass=mass, spring_k=spring_k, fragility=fragility))  # record rotated box
+            self.boxes.append(DeformBox(box_id_index, size_x, size_y, size_z, pos[0], pos[1], new_h, mass=mass, spring_k=spring_k, fragility=fragility))  # record rotated box
             self.rot_flags.append(rot_flag)
             self.deformed_values.append(size_z)
             # POST-PACKAGE DEFORMATION is added before updating the heightmap
