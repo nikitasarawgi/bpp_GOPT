@@ -60,6 +60,7 @@ class DeformPackingEnv(gym.Env):
         self.test = load_test_data
 
         # for rendering
+        self.is_render = is_render
         if is_render:
             self.renderer = VTKRender(container_size, auto_render=not is_hold_on)
         self.render_box = None
@@ -183,6 +184,8 @@ class DeformPackingEnv(gym.Env):
             done = True
             # print("Episode finished here and the reward is: ", reward)
             # TODO: nisara: Do the dimensions get changed here too? check code for rendering
+            if self.is_render:
+                self.renderer.hold_on()
             self.render_box = [[0, 0, 0], [0, 0, 0]]
             info = {'counter': len(self.container.boxes), 'ratio': self.container.get_volume_ratio()}
             return self.cur_observation, reward, done, False, info

@@ -120,7 +120,7 @@ class DeformContainer(object):
         heightmap = self.heightmap
         updated_z = 0
         # Weight across each column = box_mass / (box.size_x * box.size_y)
-        weight_per_column = (box.mass / (box.size_x * box.size_y)) # convert mass to kg here
+        weight_per_column = (box.mass / (box.size_x * box.size_y)) 
         # Remember that the map is 0-indexed 
         for i in range(le, ri):
             for j in range(up, do):
@@ -233,11 +233,11 @@ class DeformContainer(object):
                     points.append([x, y])
 
         # print("Points under this box:", len(points))
-        
+        frag_mass = box.mass
         if len(points) > 0:
-            box_mass_per_grid = np.round(box.mass / len(points))
+            box_mass_per_grid = np.round(frag_mass / len(points))
         else:
-            box_mass_per_grid = np.round(box.mass / (box.size_x * box.size_y))
+            box_mass_per_grid = np.round(frag_mass / (box.size_x * box.size_y))
         for point in points:
             # Do a check here to see if the fragility value is less than the box mass
             plain_fragility[point[0]][point[1]] -= box_mass_per_grid
@@ -526,6 +526,7 @@ class DeformContainer(object):
         center_np = np.array(obj_center)
         distances = np.sqrt(np.sum((points_np - center_np) ** 2, axis=1))
 
+        box_mass = box_mass
         box_mass = np.round(box_mass / len(points_np))
 
         # # calculate load distance using lever principle
