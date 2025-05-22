@@ -117,6 +117,7 @@ class DeformContainer(object):
         weight_map = self.weight_map_3d
         k_map = self.k_map_3d
         box_id_map = self.box_id_map_3d
+        heightmap = self.heightmap
         updated_z = 0
         # Weight across each column = box_mass / (box.size_x * box.size_y)
         weight_per_column = (box.mass / (box.size_x * box.size_y)) # convert mass to kg here
@@ -125,6 +126,10 @@ class DeformContainer(object):
             for j in range(up, do):
                 # calculate the compression of the box at this grid
                 # Set initial box_id as the one at the 0th index and then move upwards
+                # IMPORTANT: Deformation will only happen if the box touches another box
+                # If the box is not touching anything, then it will not deform
+                if box.pos_z != heightmap[i][j]:
+                    continue
                 total_deform = 0
                 k = 0
                 curr_h = 0
