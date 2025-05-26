@@ -9,14 +9,14 @@ import vtk
 
 
 vtk_color = {
-    'Whites': ['antique_white', 'azure', 'bisque', 'blanched_almond',
-                'cornsilk', 'eggshell', 'floral_white', 'gainsboro',
-                'ghost_white', 'honeydew', 'ivory', 'lavender',
-                'lavender_blush', 'lemon_chiffon', 'linen', 'mint_cream',
-                'misty_rose', 'moccasin', 'navajo_white', 'old_lace',
-                'papaya_whip', 'peach_puff', 'seashell', 'snow',
-                'thistle', 'titanium_white', 'wheat', 'white',
-                'white_smoke', 'zinc_white'],
+    # 'Whites': ['antique_white', 'azure', 'bisque', 'blanched_almond',
+    #             'cornsilk', 'eggshell', 'floral_white', 'gainsboro',
+    #             'ghost_white', 'honeydew', 'ivory', 'lavender',
+    #             'lavender_blush', 'lemon_chiffon', 'linen', 'mint_cream',
+    #             'misty_rose', 'moccasin', 'navajo_white', 'old_lace',
+    #             'papaya_whip', 'peach_puff', 'seashell', 'snow',
+    #             'thistle', 'titanium_white', 'wheat', 'white',
+    #             'white_smoke', 'zinc_white'],
     'Greys': ['cold_grey', 'dim_grey', 'grey', 'light_grey',
                 'slate_grey', 'slate_grey_dark', 'slate_grey_light',
                 'warm_grey'],
@@ -96,6 +96,8 @@ class VTKRender:
         # 3. interactor
         self.interactor = vtk.vtkRenderWindowInteractor()
         self.interactor.SetRenderWindow(self.render_window)
+        style = vtk.vtkInteractorStyleTrackballCamera()
+        self.interactor.SetInteractorStyle(style)
 
         # 4. camera
         self.camera = vtk.vtkCamera()
@@ -115,7 +117,15 @@ class VTKRender:
 
         self.interactor.Initialize()
         self.render_window.Render()
-        time.sleep(0.5)
+
+        self.box_id_to_color = {}
+        self.used_colors = set()
+
+        self.all_colors = []
+        for cat in vtk_color:
+            for shade in vtk_color[cat]:
+                self.all_colors.append(shade)
+        # time.sleep(0.5)
 
     def _init_axes(self) -> None:
         axes = vtk.vtkAxesActor()
@@ -228,9 +238,7 @@ class VTKRender:
         colors = vtk.vtkNamedColors()
 
         for box_id in unique_ids:
-            color_category = color_key[box_id % len(color_key)]  
-            color_shade = (box_id // len(color_key)) % len(vtk_color[color_category])
-            color_name = vtk_color[color_category][color_shade]
+            color_name = self._get_unique_color(box_id)
             
             x_coords, y_coords, z_coords = np.where(box_id_map_3d == box_id)
             
@@ -334,6 +342,29 @@ class VTKRender:
         self.render.AddActor(actor)
         self.render_window.Render()
 
+    def _get_unique_color(self, box_id):
+        """Get a unique color that has not been used yet"""
+        # Try the default color first
+        # If that is already used find an unused color
+
+        if box_id in self.box_id_to_color:
+            return self.box_id_to_color[box_id]
+        
+        
+        color_category = color_key[box_id % len(color_key)]
+        color_shade = (box_id // len(color_key)) % len(vtk_color[color_category])
+        color_name = vtk_color[color_category][color_shade]
+        
+        if color_name in self.used_colors:
+            for color in self.all_colors:
+                if color not in self.used_colors:
+                    color_name = color
+                    break
+
+        self.used_colors.add(color_name)
+        self.box_id_to_color[box_id] = color_name
+        return color_name
+    
 if __name__ == "__main__":
     render = VTKRender([10, 10, 10])
 
