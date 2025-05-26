@@ -42,7 +42,7 @@ class DeformContainer(object):
         # The weight_map_3d denotes the total weight ABOVE that grid
         self.weight_map_3d = np.zeros(shape=(length, width, height), dtype=np.float32)
         self.k_map_3d = np.zeros(shape=(length, width, height), dtype=np.float32)
-        self.box_id_map_3d = np.zeros(shape=(length, width, height), dtype=np.int32) * -1
+        self.box_id_map_3d = np.ones(shape=(length, width, height), dtype=np.int32) * -1
 
         self.deformed_values = []
 
@@ -98,95 +98,150 @@ class DeformContainer(object):
         ri = box.pos_x + box.size_x
         up = box.pos_y
         do = box.pos_y + box.size_y
-        box = self.post_package_deform(box)
-        max_h = np.max(plain[le:ri, up:do])
-        # nisara:: COMMENTED OUT THIS - please recheck again
+        plain, box = self.post_package_deform(plain, box)
+        # nisara:: COMMENTED THIS - please recheck again
         # max_h = max(max_h, box.pos_z + box.size_z)
-        max_h = box.pos_z + box.size_z
-        plain[le:ri, up:do] = max_h
+        # TODO: debug if pos_z changed for this box
+        # max_h = box.pos_z + box.size_z
+        # plain[le:ri, up:do] = max_h
         return plain, box
     
-    def post_package_deform(self, box):
+    def post_package_deform(self, heightmap_copy, box):
         # Since we now have deformable objects, we update the heightmap to include their compression
-        # IMP: One simplistic assumption - the weight of each box is equally distributed across all the grids it occupies
-        # irrespective of where the support beneath it is
 
         le, ri = box.pos_x, box.pos_x + box.size_x
         up, do = box.pos_y, box.pos_y + box.size_y
-        z = box.pos_z
-        weight_map = self.weight_map_3d
-        k_map = self.k_map_3d
-        box_id_map = self.box_id_map_3d
-        heightmap = self.heightmap
-        updated_z = 0
-        # Weight across each column = box_mass / (box.size_x * box.size_y)
+        original_z = box.pos_z
+        weight_map = copy.deepcopy(self.weight_map_3d)
+        k_map = copy.deepcopy(self.k_map_3d)
+        box_id_map = copy.deepcopy(self.box_id_map_3d)
+        plain = copy.deepcopy(heightmap_copy)
+        ## NOTE: ASSUMPTION - weight is uniformly distributed across area, irrespective of the support
         weight_per_column = (box.mass / (box.size_x * box.size_y)) 
         # Remember that the map is 0-indexed 
+
+        ## NOTE:: ASSUMPTION: We will normalize the deformation values based on what the minimum total deform is over the area 
+        ## So the new incoming box will still be placed uniformly and not fall within the cracks anywhere
+        
+        # First pass: calculate total potential deformation for each column
+        # Even if the box is not touching that column right now, calculate the POTENTIAL deformation had it touched
+        potential_heights = {}
+        box_deformations = {}
+
         for i in range(le, ri):
             for j in range(up, do):
                 # calculate the compression of the box at this grid
                 # Set initial box_id as the one at the 0th index and then move upwards
-                # IMPORTANT: Deformation will only happen if the box touches another box
+
+                surface_height = plain[i, j]
+                box_deformations[(i, j)] = []
+
+                potential_heights[(i, j)] = surface_height
+
+                # IMPORTANT NOTE: ASSUMPTION: Deformation will only happen if the box touches another box
                 # If the box is not touching anything, then it will not deform
-                if box.pos_z != heightmap[i][j]:
-                    continue
-                total_deform = 0
+                # But calculate deformation for all columns so you know what the max height should be after defromation
+                
                 k = 0
+                total_column_deform = 0
                 curr_h = 0
-                z = box.pos_z
-                box_id = box_id_map[i][j][0]
+                z = surface_height
+                box_id = box_id_map[i, j, 0]
+
                 while (k <= z) and (box_id != 0):
-                    if box_id_map[i][j][k] == box_id:
+                    if box_id_map[i, j, k] == box_id:
                         curr_h += 1
                         k += 1
                     else:
-                        # Confirm that the weight_values are same across all grids
-                        weight_values = weight_map[i][j][k-curr_h:k] # Just note here that weight_values is going to be a pointer to the array, so once you add it to the new weight, THIS WILL CHANGE TOO!
-                        k_values = k_map[i][j][k-curr_h:k]
-                        # Python is not ready for this yet :)
-                        # assert np.isclose(np.sum(weight_values), weight_values[0] * curr_h), "Weight values are not same across all grids"
-                        # assert np.isclose(np.sum(k_values), k_values[0] * curr_h), "K values are not same across all grids"
-                        weight_map[i][j][k-curr_h:k] = weight_values + weight_per_column
-                        deform_val = weight_per_column * (9.8) / k_values[0]
-                        # Round up the deform value to the nearest integer
-                        deform_val = int(np.round(deform_val))
-                        if deform_val >= 1:
+                        if box_id != -1:
+                            k_values = k_map[i, j, k-curr_h:k]
+                            # Python is not ready for this yet :)
+                            # assert np.isclose(np.sum(weight_values), weight_values[0] * curr_h), "Weight values are not same across all grids"
+                            # assert np.isclose(np.sum(k_values), k_values[0] * curr_h), "K values are not same across all grids"
+                            
+                            # Round up the deform value to the nearest integer
+                            deform_val = weight_per_column * (9.8) / k_values[0]
+                            deform_val = int(np.round(deform_val))
                             # Make sure the deform value is not greater than the current height
                             if deform_val > curr_h:
                                 deform_val = curr_h
-                            total_deform += deform_val
-                            # Update all the values above this point to shift down by deform_val amount
-                            weight_map[i][j][k-deform_val: k] = -1
-                            k_map[i][j][k-deform_val: k] = -1
-                            weight_map[i][j][k-deform_val: z-deform_val] = weight_map[i][j][k:z]
-                            k_map[i][j][k-deform_val: z-deform_val] = k_map[i][j][k:z]
-                            box_id_map[i][j][k-deform_val: z-deform_val] = box_id_map[i][j][k:z]
-
-                            weight_map[i][j][z-deform_val:z] = 0
-                            k_map[i][j][z-deform_val:z] = 0
-                            box_id_map[i][j][z-deform_val:z] = 0
-
-                            k = k - deform_val
-                            z = z - deform_val 
-                                                       
+                            
+                            total_column_deform += deform_val
+                            box_deformations[(i, j)].append((k-curr_h, k, deform_val, box_id, k_values[0]))
+                            
                         curr_h = 0
-                        box_id = box_id_map[i][j][k]
-                # k should ideally be equal to z here
-                if k > z:
-                    k = z
-                updated_z = max(updated_z, k)
-        height = box.size_z 
-        # Weight map should include weight ON TOP of this grid, not of the box contained in this grid
-        # weight_map[i][j][k:k+height] = weight_per_column
-        k_map[le:ri, up:do, updated_z:updated_z+height] = box.spring_k
-        box_id_map[le:ri, up:do, updated_z:updated_z+height] = box.box_id
+                        k += curr_h
+                        box_id = box_id_map[i, j, k]
+                # After deformation, box would settle at this height
+                potential_heights[(i, j)] -=  total_column_deform
+        
+        # Box will settle at the MAXIMUM height (minimum compression)
+        max_post_height = max(potential_heights.values())
+
+        # Second pass: deform every column to reach this max post height above
+        for i in range(le, ri):
+            for j in range(up, do):
+
+                k = 0
+                
+                surface_height = plain[i, j]
+                deformed_height = potential_heights[(i, j)]
+                if surface_height > max_post_height:
+                    
+                    # This was what the column was going to get deformed originally had it made contact with the box
+                    original_deform = surface_height - deformed_height
+                    # Now, we can only deform by this much but
+                    needed_deform = surface_height - max_post_height
+                    total_applied_deform = 0
+
+                    scale_factor = needed_deform / original_deform
+                        
+                    for start_k, end_k, orig_deform, box_id, spring_k in box_deformations[(i, j)]:
+                        # Scale the deformation
+                        scaled_deform = int(np.round((orig_deform * scale_factor) + 1e-6))
+
+                        if scaled_deform > 0 and total_applied_deform + scaled_deform > needed_deform:
+                            scaled_deform = needed_deform - total_applied_deform
+
+                        # NOTE:: Ideally, I would want this but ...
+                        """
+                        if scaled_deform < 1 and orig_deform > 0:
+                            scaled_deform = 1
+                        """
+
+                        curr_h = end_k - start_k
+                        if scaled_deform > curr_h:
+                            scaled_deform = curr_h
+                        new_h = curr_h - scaled_deform
+
+                        ## TODO: Check this
+                        
+                        
+                        if new_h > 0:
+                            box_id_map[i, j, k: k + new_h] = box_id
+                            k_map[i, j, k: k + new_h] = spring_k  
+                        total_applied_deform += scaled_deform
+                        k += new_h
+                    # Remember that max_post_height is now your new position_z
+                    # So all values above this right now will be set to 0 or -1 and after the whole iteration, we will set it to the real values
+                    if total_applied_deform != needed_deform or k != max_post_height:   
+                        print("WARNING: Total applied deformation is not equal to the needed deformation. Please check the code.")
+                        print(f"Total applied deformation: {total_applied_deform}, Needed deformation: {needed_deform}, k: {k}, max_post_height: {max_post_height}")
+                    box_id_map[i, j, k:] = -1
+                    k_map[i, j, k:] = 0.0
+
+                # Add the new box to all maps
+                height = box.size_z
+                box_id_map[i, j, max_post_height:max_post_height+height] = box.box_id
+                k_map[i, j, max_post_height:max_post_height+height] = box.spring_k
+                plain[i, j] = max_post_height + height       
 
         self.weight_map_3d = weight_map
         self.k_map_3d = k_map
         self.box_id_map_3d = box_id_map
-        box.pos_z = updated_z
+        box.pos_z = max_post_height
 
-        return box
+        return plain, box
 
                     
     def update_stressmap(self, plain_stress, box):
@@ -229,7 +284,7 @@ class DeformContainer(object):
         points = []
         for x in range(le, ri):
             for y in range(up, do):
-                if plain_height[x][y] == (place_z):
+                if plain_height[x, y] == (place_z):
                     points.append([x, y])
 
         # print("Points under this box:", len(points))
@@ -240,7 +295,7 @@ class DeformContainer(object):
             box_mass_per_grid = np.round(frag_mass / (box.size_x * box.size_y))
         for point in points:
             # Do a check here to see if the fragility value is less than the box mass
-            plain_fragility[point[0]][point[1]] -= box_mass_per_grid
+            plain_fragility[point[0], point[1]] -= box_mass_per_grid
     
 
 
@@ -475,7 +530,7 @@ class DeformContainer(object):
         # points_frag = []
         for x in range(x_1, x_2 + 1):
             for y in range(y_1, y_2 + 1):
-                if self.heightmap[x][y] == (z + 1):
+                if self.heightmap[x, y] == (z + 1):
                     points.append([x, y]) # appends each point 
         # nisara:: COMMENT PRINT
         # self.heightmap_to_compare = self.heightmap
@@ -617,9 +672,8 @@ class DeformContainer(object):
             box_id_index = len(self.boxes) + 1
             self.boxes.append(DeformBox(box_id_index, size_x, size_y, size_z, pos[0], pos[1], new_h, mass=mass, spring_k=spring_k, fragility=fragility))  # record rotated box
             self.rot_flags.append(rot_flag)
-            self.deformed_values.append(size_z)
             # POST-PACKAGE DEFORMATION is added before updating the heightmap
-            self.fragilitymap = self.update_fragilitymap(self.fragilitymap, self.heightmap, self.boxes[-1])
+            self.fragilitymap = self.update_fragilitymap(self.fragilitymap, plain, self.boxes[-1])
             self.heightmap, self.boxes[-1] = self.update_heightmap(plain, self.boxes[-1])
             self.height = max(self.height, self.boxes[-1].pos_z + size_z)
             self.stressmap = self.update_stressmap(self.stressmap, self.boxes[-1])
