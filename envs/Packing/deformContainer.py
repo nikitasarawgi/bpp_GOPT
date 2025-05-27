@@ -168,7 +168,9 @@ class DeformContainer(object):
                             
                             total_column_deform += deform_val
                             box_deformations[(i, j)].append((k-curr_h, k, deform_val, box_id, k_values[0]))
-                            
+                        else:
+                            total_column_deform = 0
+                            box_deformations[(i, j)] = []    
                         curr_h = 0
                         k += curr_h
                         box_id = box_id_map[i, j, k]
@@ -190,13 +192,18 @@ class DeformContainer(object):
                     
                     # This was what the column was going to get deformed originally had it made contact with the box
                     original_deform = surface_height - deformed_height
+                    # Counter to check whether a specific box NEEDS to be deformed to maintain status
+                    counter_deform = original_deform
                     # Now, we can only deform by this much but
                     needed_deform = surface_height - max_post_height
                     total_applied_deform = 0
 
                     scale_factor = needed_deform / original_deform
-                        
+
+                    k = box_deformations[(i, j)][0][0]
+
                     for start_k, end_k, orig_deform, box_id, spring_k in box_deformations[(i, j)]:
+                        counter_deform -= orig_deform
                         # Scale the deformation
                         scaled_deform = int(np.round((orig_deform * scale_factor) + 1e-6))
 
@@ -214,7 +221,10 @@ class DeformContainer(object):
                             scaled_deform = curr_h
                         new_h = curr_h - scaled_deform
 
-                        ## TODO: Check this
+                        if (needed_deform - total_applied_deform >= counter_deform) and (orig_deform > scaled_deform):
+                            # print("Did come here")
+                            scaled_deform = min(needed_deform - total_applied_deform, orig_deform)
+                            new_h = curr_h - scaled_deform
                         
                         
                         if new_h > 0:
@@ -222,11 +232,31 @@ class DeformContainer(object):
                             k_map[i, j, k: k + new_h] = spring_k  
                         total_applied_deform += scaled_deform
                         k += new_h
+                        
                     # Remember that max_post_height is now your new position_z
                     # So all values above this right now will be set to 0 or -1 and after the whole iteration, we will set it to the real values
                     if total_applied_deform != needed_deform or k != max_post_height:   
                         print("WARNING: Total applied deformation is not equal to the needed deformation. Please check the code.")
                         print(f"Total applied deformation: {total_applied_deform}, Needed deformation: {needed_deform}, k: {k}, max_post_height: {max_post_height}")
+                        
+                        print("\n")
+                        print("Surface height: ", surface_height)
+                        print("Needed deform: ", needed_deform)
+                        print("Original deform: ", original_deform)
+                        print("Scale factor: ", scale_factor)
+                        print("\n")
+
+                        print("Current height: ", curr_h)
+                        print("new_h: ", new_h)
+                        print("orig deform: ", orig_deform)
+                        print("Scaled deform: ", scaled_deform)
+
+                        print("\n")
+                        print("Len of box_deformations: ", len(box_deformations[(i, j)]))
+                        print("Box deformations: ", box_deformations[(i, j)])
+                        print("Box ID map: ", box_id_map[i, j, :])
+                        print("Box ID: ", box_id)
+                        print("\n")
                     box_id_map[i, j, k:] = -1
                     k_map[i, j, k:] = 0.0
 
