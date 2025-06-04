@@ -16,20 +16,29 @@ from .box import DeformBox
 
 class DeformContainer(object):
     def __init__(self, length=10, width=10, height=10, rotation=True):
+
         self.dimension = np.array([length, width, height])
+
         # heightmap is the map that stores the maximum height of each grid
         self.heightmap = np.zeros(shape=(length, width), dtype=np.int32)
+
         # stressmap is the map that stores the EQUIVALENT spring constant of each grid
         self.stressmap = np.zeros(shape=(length, width), dtype=np.float32)
+
         # fragilitymap is the map that stores the MINIMUM fragility index of each grid
         # initialize as 10000 (highest value) since the floor of the box is rigid and can take any weight
         self.fragilitymap = np.ones(shape=(length, width), dtype=np.float32) * 1000
+
         self.can_rotate = rotation
+
         # packed box list
         self.boxes = []
+
         # record rotation information
         self.rot_flags = []
+
         self.height = height
+
         self.candidates = [[0, 0, 0]] # TODO: nisara - why is this 3D and not 6D now?
 
         # map of fragility index to allowed maximum mass on top of it
@@ -41,22 +50,28 @@ class DeformContainer(object):
 
         # The weight_map_3d denotes the total weight ABOVE that grid
         self.weight_map_3d = np.zeros(shape=(length, width, height), dtype=np.float32)
+
         self.k_map_3d = np.zeros(shape=(length, width, height), dtype=np.float32)
+
         self.box_id_map_3d = np.ones(shape=(length, width, height), dtype=np.int32) * -1
 
         self.deformed_values = []
+
 
     # !! not being called anywhere
     def print_heightmap(self):
         print("container heightmap: \n", self.heightmap)
 
+
     # !! not being called anywhere
     def print_stressmap(self):
         print("container stressmap: \n", self.stressmap)
 
+
     # !! not being called anywhere
     def print_fragilitymap(self):
         print("container fragilitymap: \n", self.fragilitymap)
+
 
     # !! not being called anywhere
     def get_heightmap(self):
@@ -69,6 +84,7 @@ class DeformContainer(object):
         for box in self.boxes:
             plain, _ = self.update_heightmap(plain, box)
         return plain
+
 
     # !! not being called anywhere
     def update_heightmap_vision(self, vision):
@@ -106,6 +122,7 @@ class DeformContainer(object):
         # plain[le:ri, up:do] = max_h
         return plain, box
     
+     
     def post_package_deform(self, heightmap_copy, box):
         # Since we now have deformable objects, we update the heightmap to include their compression
 
@@ -117,6 +134,7 @@ class DeformContainer(object):
         box_id_map = copy.deepcopy(self.box_id_map_3d)
         plain = copy.deepcopy(heightmap_copy)
         ## NOTE: ASSUMPTION - weight is uniformly distributed across area, irrespective of the support
+        ## TODO:: This should be updated because fragility is updated
         weight_per_column = (box.mass / (box.size_x * box.size_y)) 
         # Remember that the map is 0-indexed 
 
