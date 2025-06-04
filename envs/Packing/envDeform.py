@@ -178,12 +178,13 @@ class DeformPackingEnv(gym.Env):
         
         if not succeeded:
             if self.reward_type == "terminal":  # Terminal reward
-                reward = self.container.get_volume_ratio()
+                # reward = self.container.get_volume_ratio()
+                ## NOTE: If the reward is the volume_ratio, it might learn not to allow deformable objects in the fear that it will reduce the volume in later iterations
+                reward = len(self.container.boxes)
             else:  # Step-wise/Immediate reward
                 reward = 0.0
             done = True
             # print("Episode finished here and the reward is: ", reward)
-            # TODO: nisara: Do the dimensions get changed here too? check code for rendering
             if self.is_render:
                 self.renderer.hold_on()
             self.render_box = [[0, 0, 0], [0, 0, 0]]
@@ -196,9 +197,10 @@ class DeformPackingEnv(gym.Env):
         self.box_creator.generate_box_size()  # add a new box to the list
 
         if self.reward_type == "terminal":
-            # nisara: CHANGED: reward is the volume ratio of the box to the bin
+            ## nisara: CHANGED: reward is the volume ratio of the box to the bin
             # reward = 0.01
-            reward = self.container.get_volume_ratio()
+            # reward = self.container.get_volume_ratio()
+            reward = len(self.container.boxes)
         else:
             reward = box_ratio
         done = False
