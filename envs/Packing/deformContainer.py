@@ -661,8 +661,8 @@ class DeformContainer(object):
     def get_volume_ratio(self):
         # Ration of the volume of packed boxes to the volume of the container
         # vo = reduce(lambda x, y: x + y, [box.size_x * box.size_y * box.size_z for box in self.boxes], 0.0)
-        # Calculate volume by seeing the heightmap - the height of each grid is given by the heightmap
-        vo = np.sum(self.heightmap)
+        # calculate the number of grid cells where box_id in self.box_id_map_3d is not -1
+        vo = np.sum(self.box_id_map_3d != -1)
         mx = self.dimension[0] * self.dimension[1] * self.dimension[2]
         ratio = vo / mx
         assert ratio <= 1.0
