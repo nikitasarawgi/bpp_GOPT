@@ -25,8 +25,13 @@ class DeformPackingEnv(gym.Env):
         k_placement=100,
         is_render=False,
         is_hold_on=False,
+        use_test_indices= False,
+        save_img_path=None,
         **kwags
     ) -> None:
+        self.use_test_data = use_test_indices
+        self.test_index = 0
+        self.save_img_path = save_img_path
         self.bin_size = container_size
         self.area = int(self.bin_size[0] * self.bin_size[1])
         # packing state
@@ -185,8 +190,11 @@ class DeformPackingEnv(gym.Env):
                 reward = 0.0
             done = True
             # print("Episode finished here and the reward is: ", reward)
+            self.test_index += 1
             if self.is_render:
-                self.renderer.hold_on()
+                # self.renderer.hold_on()
+                self.renderer.save_img(self.save_img_path, self.test_index)
+                self.renderer.combine_frames_to_video(self.save_img_path, self.test_index)
             self.render_box = [[0, 0, 0], [0, 0, 0]]
             info = {'counter': len(self.container.boxes), 'ratio': self.container.get_volume_ratio()}
             return self.cur_observation, reward, done, False, info
@@ -194,7 +202,7 @@ class DeformPackingEnv(gym.Env):
         box_ratio = self.get_box_ratio()
 
         self.box_creator.drop_box()  # remove current box from the list
-        self.box_creator.generate_box_size()  # add a new box to the list
+        self.box_creator.generate_box_size(self.use_test_data, self.test_index)  # add a new box to the list
 
         if self.reward_type == "terminal":
             ## nisara: CHANGED: reward is the volume ratio of the box to the bin
@@ -213,7 +221,7 @@ class DeformPackingEnv(gym.Env):
         super().reset(seed=seed)
         self.box_creator.reset()
         self.container = DeformContainer(*self.bin_size)
-        self.box_creator.generate_box_size()
+        self.box_creator.generate_box_size(self.use_test_data, self.test_index)
         self.candidates = np.zeros_like(self.candidates)
         return self.cur_observation, {}
     
@@ -224,3 +232,4 @@ class DeformPackingEnv(gym.Env):
         self.renderer.render_deform_bin(self.container.box_id_map_3d)
         # self.renderer.add_item(self.render_box[0], self.render_box[1])
         # self.renderer.save_img()
+        self.renderer.save_video_frame(self.save_img_path)

@@ -19,7 +19,8 @@ def get_args():
                         help='Number of episodes for evaluation')
     parser.add_argument('--render', action='store_true',
                         help='Render the environment while testing')
-    
+    # parser.add_argument('--test-index', type=int, default=0,)
+    parser.add_argument('--test-log-file', type=str, default="test_log.txt",)
     args = parser.parse_args()
 
     try:

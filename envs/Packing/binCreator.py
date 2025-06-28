@@ -2,6 +2,8 @@ import numpy as np
 import copy
 import torch
 import math
+import csv
+import ast
 
 
 class BoxCreator(object):
@@ -35,9 +37,9 @@ class RandomDeformBoxCreator(BoxCreator):
     # the range of spring constant is 1 to 10 (inclusive)
     # the range of fragility index is 0 to 10 (inclusive) (let's assume fragility index == mass)
     # NOTE: fragility index is the max weight THAT each grid of that box can hold
-    for l in range(4):
-        for w in range(4):
-            for h in range(4):
+    for l in range(3):
+        for w in range(3):
+            for h in range(3):
                 for m in range(1, 11, 1):
                     for k in range(1, 11, 1):
                         default_box_set.append((2 + l, 2 + w, 2 + h, m, k, np.round(m)))
@@ -48,10 +50,36 @@ class RandomDeformBoxCreator(BoxCreator):
         if self.box_set is None:
             self.box_set = RandomDeformBoxCreator.default_box_set
         # print(self.box_set)
+        print("Box set size: ", len(self.box_set))
+        # Load the test indices and keep if needed from the csv file
+        self.load_test_indices()
+        
+    def load_test_indices(self):
+        # file_path = "test_indices_4.txt"
+        file_path = "video_test_indices_part4.txt"
+        self.test_indices = []
+        try:
+            with open(file_path, 'r') as file:
+                for line in file:
+                    self.test_indices.append(ast.literal_eval(line.strip()))
+        except Exception as e:
+            print(f"Error loading test indices from {file_path}: {e}")
+        self.box_index = 0
 
-    def generate_box_size(self, **kwargs):
-        idx = np.random.randint(0, len(self.box_set))
+    def generate_box_size(self, use_test_data = False, test_index = 0, **kwargs):
+        if use_test_data: 
+            row = self.test_indices[test_index]
+            idx = row[self.box_index]
+            self.box_index += 1
+            print("Test index: ", test_index,  "and index from test data: ", idx)
+            print("Box dimensions: ", self.box_set[idx])
+        else:
+            idx = np.random.randint(0, len(self.box_set))
         self.box_list.append(self.box_set[idx])
+    
+    def reset(self):
+        super().reset()
+        self.box_index = 0
 
 
 class RandomBoxCreator(BoxCreator):

@@ -321,8 +321,9 @@ class Collector(object):
 
             if render:
                 self.env.render()
-                if render > 0 and not np.isclose(render, 0):
-                    time.sleep(render)
+                ## nisara:: COMMENT for testing
+                # if render > 0 and not np.isclose(render, 0):
+                #     time.sleep(render)
 
             # add data into the buffer
             ptr, ep_rew, ep_len, ep_idx = self.buffer.add(
@@ -598,8 +599,9 @@ class AsyncCollector(Collector):
 
             if render:
                 self.env.render()
-                if render > 0 and not np.isclose(render, 0):
-                    time.sleep(render)
+                ## nisara:: COMMENT for testing
+                # if render > 0 and not np.isclose(render, 0):
+                #     time.sleep(render)
 
             # add data into the buffer
             ptr, ep_rew, ep_len, ep_idx = self.buffer.add(

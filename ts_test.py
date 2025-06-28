@@ -36,7 +36,9 @@ def test(args):
         reward_type=args.train.reward_type,
         action_scheme=args.env.scheme,
         k_placement=args.env.k_placement,
-        is_render=args.render
+        is_render=args.render,
+        use_test_indices=True,
+        save_img_path=args.test_log_file,
     )
 
     # network
@@ -81,6 +83,17 @@ def test(args):
     print('average space utilization: %.4f'%(result['ratio']))
     print('average put item number: %.4f'%(result['num']))
     print("standard variance: %.4f"%(result['ratio_std']))
+    # Write these to the log file
+    filepath = os.path.join(args.test_log_file, "test_summary.txt")
+    if not os.path.exists(os.path.dirname(filepath)):
+        os.makedirs(os.path.dirname(filepath))
+    with open(filepath, 'w') as f:
+        for i in range(args.test_episode):
+            f.write(f"episode {i+1} => ratio: {result['ratios'][i]:.4f}, total: {result['nums'][i]}\n")
+        f.write(f"average space utilization: {result['ratio']:.4f}\n")
+        f.write(f"average put item number: {result['num']:.4f}\n")
+        f.write(f"standard variance: {result['ratio_std']:.4f}\n")
+        
 
 
 if __name__ == '__main__':
@@ -88,7 +101,6 @@ if __name__ == '__main__':
     args = arguments.get_args()
     args.train.algo = args.train.algo.upper()
     args.train.step_per_collect = args.train.num_processes * args.train.num_steps  
-
     if args.render:
         args.test_episode = 1  # for visualization
 

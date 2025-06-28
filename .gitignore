@@ -5,3 +5,6 @@
 logs
 log
 .vscode
+
+**/results/**
+**/checkpoint/** 

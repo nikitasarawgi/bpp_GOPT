@@ -126,6 +126,9 @@ class VTKRender:
             for shade in vtk_color[cat]:
                 self.all_colors.append(shade)
         # time.sleep(0.5)
+        
+        self.frame_index = 0
+
 
     def _init_axes(self) -> None:
         axes = vtk.vtkAxesActor()
@@ -167,6 +170,7 @@ class VTKRender:
         actor.GetProperty().SetRepresentationToWireframe()
         
         self.render.AddActor(actor)
+        
 
     def add_item(self, item_size: List[int], item_pos: List[int], dir: str="") -> None:
 
@@ -193,10 +197,10 @@ class VTKRender:
         actor.GetProperty().EdgeVisibilityOn()
         
         self.render.AddActor(actor)
-        time.sleep(0.5)
+        # time.sleep(0.5)
         self.render_window.Render()
         
-        time.sleep(0.3)
+        # time.sleep(0.3)
         actor.GetProperty().SetColor(colors.GetColor3d(vtk_color[color_0][color_1]))
         self.render_window.Render()
         
@@ -208,12 +212,10 @@ class VTKRender:
     def hold_on(self) -> None:
         self.interactor.Start()
 
-    def save_img(self) -> None:
-        time_str = datetime.datetime.now().strftime("%Y.%m.%d-%H-%M-%S.%f")
-        img_name = time_str + r".png"
-        path = os.path.join("images", "tmp")
-        if not os.path.exists(path):
-            os.makedirs(path)
+    def save_img(self, save_img_path, test_index = None) -> None:
+
+        img_name = str(test_index) + r".png"
+        path = save_img_path
 
         window_to_image_filter = vtk.vtkWindowToImageFilter()
         window_to_image_filter.SetInput(self.render_window)
@@ -223,6 +225,31 @@ class VTKRender:
         writer.SetFileName(os.path.join(path, img_name))
         writer.SetInputConnection(window_to_image_filter.GetOutputPort())
         writer.Write()
+        
+    def save_video_frame(self, save_img_path: str) -> None:
+        # Ensure the save directory exists
+        if not os.path.exists(save_img_path):
+            os.makedirs(save_img_path)
+
+        # Save the current frame as an image
+        img_name = f"frame_{self.frame_index:04d}.png"  # Sequential frame naming
+        img_path = os.path.join(save_img_path, img_name)
+
+        window_to_image_filter = vtk.vtkWindowToImageFilter()
+        window_to_image_filter.SetInput(self.render_window)
+        window_to_image_filter.Update()
+
+        writer = vtk.vtkPNGWriter()
+        writer.SetFileName(img_path)
+        writer.SetInputConnection(window_to_image_filter.GetOutputPort())
+        writer.Write()
+        self.frame_index += 1
+
+    def combine_frames_to_video(self, save_img_path: str, test_index = None, fps: int = 4) -> None:
+        video_path = os.path.join(save_img_path, str(test_index) + "video.mp4")
+        command = f"ffmpeg -framerate {fps} -i {save_img_path}/frame_%04d.png -c:v mpeg4 -q:v 5 {video_path}"
+        os.system(command)
+        print(f"Video saved as {video_path}")
 
     def render_deform_bin(self, box_id_map_3d: np.ndarray) -> None:
         actors = self.render.GetActors()
@@ -365,18 +392,18 @@ class VTKRender:
         self.box_id_to_color[box_id] = color_name
         return color_name
     
-if __name__ == "__main__":
-    render = VTKRender([10, 10, 10])
+# if __name__ == "__main__":
+#     render = VTKRender([10, 10, 10])
 
-    # render.add_item([2, 3, 2], [0, 0, 0])
-    # # render.hold_on()
-    # render.add_item([1, 1, 1], [2, 0, 0])
-    # render.add_item([4, 3, 6], [4, 0, 0])
+#     # render.add_item([2, 3, 2], [0, 0, 0])
+#     # # render.hold_on()
+#     # render.add_item([1, 1, 1], [2, 0, 0])
+#     # render.add_item([4, 3, 6], [4, 0, 0])
 
-    # Create a random 3D box ID map
-    box_id_map_3d = np.random.randint(0, 5, (10, 10, 10))
+#     # Create a random 3D box ID map
+#     box_id_map_3d = np.random.randint(0, 5, (10, 10, 10))
 
-    render.render_deform_bin(box_id_map_3d)
+#     render.render_deform_bin(box_id_map_3d)
     
 
-    render.hold_on()
+#     render.hold_on()
